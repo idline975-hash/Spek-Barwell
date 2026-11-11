@@ -3,12 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Database,
   Search,
   Plus,
   FileSpreadsheet,
+  FileText,
   FileJson,
   Upload,
   Trash2,
@@ -25,7 +30,8 @@ import {
   Layers,
   Wrench,
   Hash,
-  Image as ImageIcon
+  Image as ImageIcon,
+  RefreshCw
 } from 'lucide-react';
 
 interface DataRow {
@@ -90,7 +96,7 @@ const DEFAULT_DATA: DataRow[] = [
   { comp: "S", id: "2626", item: "HO 99", grm: "56", detailGrm: "", dies: "TR 2" },
   { comp: "E", id: "2653", item: "HO 157", grm: "83", detailGrm: "(175)", dies: "HO 157 (▢)" },
   { comp: "E", id: "4500", item: "H 152", grm: "313 ± 4", detailGrm: "(257)", dies: "276" },
-  { comp: "", id: "", item: "H 63", grm: "20-21", detailGrm: "", dies: "DT 32 (=)" },
+  { comp: "-", id: "-", item: "H 63", grm: "20-21", detailGrm: "", dies: "DT 32 (=)" },
   { comp: "SA", id: "2930", item: "H 29", grm: "250", detailGrm: "", dies: "276" },
 
   // From PDF: RECORD CODE DATA MESIN (KODE: MT)
@@ -161,121 +167,62 @@ const DEFAULT_DATA: DataRow[] = [
   { comp: "N", id: "2801", item: "SK 324", grm: "120 ± 1", detailGrm: "(350)", dies: "SK 324 (O)" },
   { comp: "N", id: "2801", item: "SK 202", grm: "90 ± 2", detailGrm: "(381)", dies: "SK 202 (X)" },
 
-  // From PDF: RECORD CODE DATA MESIN (KODE: Y)
-  { comp: "EG", id: "4704", item: "Y 53 (324)", grm: "250", detailGrm: "", dies: "276" },
-  { comp: "E", id: "1781", item: "Y 535 A (348)", grm: "125", detailGrm: "", dies: "276" },
-  { comp: "E", id: "1000", item: "Y 414 (334)", grm: "125", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "1000", item: "Y 269", grm: "84", detailGrm: "", dies: "Y 269 (-)" },
-  { comp: "E", id: "1000", item: "Y 281 (361)", grm: "145", detailGrm: "", dies: "276" },
-  { comp: "N", id: "4645", item: "Y 467", grm: "160", detailGrm: "", dies: "Y 269 ➔" },
-  { comp: "N", id: "2661", item: "Y 377 (62)", grm: "8.8", detailGrm: "", dies: "Ø 18" },
-  { comp: "N", id: "2822", item: "Y 408", grm: "36", detailGrm: "", dies: "Ø 35" },
-  { comp: "N", id: "2601", item: "Y 212", grm: "3.4", detailGrm: "", dies: "Ø 10" },
-  { comp: "N", id: "4701", item: "Y 346", grm: "8.2", detailGrm: "", dies: "Ø 19" },
-  { comp: "N", id: "2910", item: "Y 86", grm: "80 ± 1", detailGrm: "", dies: "Y 86 (-)" },
-  { comp: "N", id: "2910", item: "Y 388", grm: "45", detailGrm: "", dies: "Y 269" },
-  { comp: "N", id: "2810", item: "Y 223", grm: "505 ± 2", detailGrm: "", dies: "276" },
-  { comp: "N", id: "2710", item: "Y 118", grm: "175", detailGrm: "", dies: "276" },
-  { comp: "N", id: "2510", item: "Y 48", grm: "120", detailGrm: "", dies: "276" },
-  { comp: "EG", id: "2804", item: "Y 138 (17)", grm: "60", detailGrm: "", dies: "Y 138 (v)" },
-  { comp: "EG", id: "2804", item: "Y 47", grm: "160", detailGrm: "(129)", dies: "276" },
-  { comp: "EG", id: "4704", item: "Y 40 (272)", grm: "230", detailGrm: "", dies: "276" },
-  { comp: "AS", id: "4751", item: "Y 12 (LAMA)", grm: "42", detailGrm: "", dies: "Ø 21" },
-  { comp: "AS", id: "4751", item: "Y 203 (27)", grm: "42", detailGrm: "", dies: "Ø 20" },
-  { comp: "AS", id: "2707", item: "Y 12 (BARU)", grm: "44", detailGrm: "", dies: "Ø 21" },
-  { comp: "AS", id: "2814", item: "Y 314", grm: "46", detailGrm: "", dies: "Y 314 (□)" },
-  { comp: "AS", id: "2814", item: "Y 316", grm: "46", detailGrm: "", dies: "Y 316 (-)" },
-  { comp: "AS", id: "4751", item: "Y 148", grm: "42", detailGrm: "", dies: "Ø 20" },
-  { comp: "E", id: "2645", item: "Y 481", grm: "27 ± 2", detailGrm: "(356)", dies: "Y 151" },
-  { comp: "", id: "", item: "Y 303", grm: "74 ± 0.2", detailGrm: "(364)", dies: "Y 138 (v)" },
-  { comp: "", id: "", item: "Y 269", grm: "83 ± 0.5", detailGrm: "(376)", dies: "TH 44" },
-
   // From Additional Image: PJ & IC
   { comp: "C", id: "2605", item: "PJ 310", grm: "10.2-10.4", detailGrm: "(352)", dies: "Ø 14 (ANTITAK SEDIKIT AIR BERSIH)" },
   { comp: "N", id: "2710", item: "IC 127", grm: "40-41", detailGrm: "(355)", dies: "Ø 14 (AIR BERSIH)" },
 
-  // From Additional Image: DT
+  // From PDF: RECORD CODE DATA MESIN (KODE: DT - Halaman 1 & 2)
+  { comp: "E", id: "1742 / 1000", item: "DT 31 (336)", grm: "26", detailGrm: "", dies: "Ø 45 (AIR BERSIH)" },
+  { comp: "E", id: "2657", item: "DT 63", grm: "36", detailGrm: "", dies: "Y 151" },
+  { comp: "E", id: "2645", item: "DT 58", grm: "195", detailGrm: "", dies: "276 (BESAR)" },
+  { comp: "E", id: "2645", item: "DT 109 (03)", grm: "150", detailGrm: "", dies: "276 (BESAR)" },
+  { comp: "E", id: "2645", item: "DT 61", grm: "275", detailGrm: "", dies: "276 (BESAR)" },
+  { comp: "E", id: "2653", item: "DT 107", grm: "48", detailGrm: "", dies: "DT 107 (AIR BERSIH)" },
+  { comp: "E", id: "2653", item: "DT 122", grm: "31", detailGrm: "", dies: "DT 107 (AIR BERSIH)" },
+  { comp: "E", id: "2665", item: "DT 178 (296)", grm: "210 YG", detailGrm: "", dies: "276" },
+  { comp: "E", id: "2665", item: "DT 178", grm: "216 CL", detailGrm: "", dies: "276" },
+  { comp: "E", id: "4354", item: "DT 40", grm: "130", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "2514", item: "DT 81", grm: "60", detailGrm: "", dies: "276" },
+  { comp: "E", id: "2658", item: "DT 139", grm: "3.5", detailGrm: "", dies: "Ø 10 (AIR BERSIH)" },
+  { comp: "E", id: "2539", item: "DT 113", grm: "2.5", detailGrm: "", dies: "Ø 10 (AIR BERSIH)" },
+  { comp: "E", id: "2539", item: "DT 97", grm: "8", detailGrm: "", dies: "Ø 26" },
+  { comp: "E", id: "2539", item: "DT 99", grm: "2.2 MLD", detailGrm: "", dies: "Ø 10 ↪ (Lengkung)" },
+  { comp: "E", id: "2539", item: "DT 99", grm: "2.5 YG", detailGrm: "", dies: "Ø 10 ↪ (Lengkung)" },
+  { comp: "E", id: "2539", item: "DT 96", grm: "16", detailGrm: "", dies: "SC 24" },
+  { comp: "E", id: "1000", item: "DT 30", grm: "80", detailGrm: "", dies: "276" },
+  { comp: "E", id: "1742", item: "DT 151/152", grm: "225", detailGrm: "", dies: "276" },
+  { comp: "E", id: "1742", item: "DT 44", grm: "22", detailGrm: "", dies: "Ø 65" },
+  { comp: "E", id: "1742", item: "DT 27 A", grm: "18", detailGrm: "", dies: "-" },
+  { comp: "E", id: "1742", item: "DT 28", grm: "50", detailGrm: "", dies: "-" },
+  { comp: "E", id: "1742", item: "DT 160 A", grm: "115 (335)", detailGrm: "(335)", dies: "276" },
+  { comp: "E", id: "4772", item: "DT 98", grm: "195", detailGrm: "", dies: "276" },
+  { comp: "E", id: "1731", item: "DT 166 A", grm: "-", detailGrm: "", dies: "-" },
   { comp: "EG", id: "2804", item: "DT 62", grm: "295", detailGrm: "", dies: "276" },
   { comp: "EG", id: "2804", item: "DT 145", grm: "51", detailGrm: "", dies: "Ø 45" },
   { comp: "EG", id: "2804", item: "DT 104", grm: "48", detailGrm: "", dies: "Ø 45" },
   { comp: "EG", id: "2804", item: "DT 33", grm: "38", detailGrm: "", dies: "TH 44" },
   { comp: "AG", id: "4615", item: "DT 114", grm: "190", detailGrm: "", dies: "276" },
-  { comp: "AS", id: "2828", item: "DT 180", grm: "27-28", detailGrm: "(316)", dies: "Ø 30" },
-  { comp: "N", id: "2600", item: "DT 32 CL", grm: "22", detailGrm: "", dies: "DT 32 / ND 277 278" },
-  { comp: "N", id: "2600", item: "DT 32 Y6", grm: "21", detailGrm: "", dies: "DT 32 / ND 277 278" },
-  { comp: "N", id: "2600", item: "DT 177", grm: "22", detailGrm: "", dies: "ND 277/278" },
+  { comp: "AS", id: "2828", item: "DT 180 (316)", grm: "27-28", detailGrm: "", dies: "Ø 30" },
+  { comp: "N", id: "2600", item: "DT 32 CL", grm: "22", detailGrm: "", dies: "DT 32 / ND 277 / 278" },
+  { comp: "N", id: "2600", item: "DT 32 YG", grm: "21", detailGrm: "", dies: "DT 32 / ND 277 / 278" },
+  { comp: "N", id: "2600", item: "DT 177", grm: "22", detailGrm: "", dies: "ND 277 / 278" },
   { comp: "N", id: "2722", item: "DT 82", grm: "8.8", detailGrm: "", dies: "Ø 21" },
 
-  // From PDF: RECORD CODE DATA MESIN (KODE: ND - Halaman 1 & 2)
-  { comp: "AG", id: "4615", item: "ND 299 (325)", grm: "12", detailGrm: "", dies: "Ø 26" },
-  { comp: "E", id: "2645", item: "ND 08 (253)", grm: "2.5", detailGrm: "", dies: "Ø 14" },
-  { comp: "E", id: "2638", item: "ND 351", grm: "3.8", detailGrm: "", dies: "ND 351" },
-  { comp: "E", id: "2638", item: "ND 352", grm: "2.2", detailGrm: "", dies: "ND 351" },
-  { comp: "E", id: "2638", item: "ND 350", grm: "4.5", detailGrm: "", dies: "DT 32" },
-  { comp: "E", id: "2638", item: "ND 368", grm: "2.6", detailGrm: "", dies: "ND 351" },
-  { comp: "E", id: "2638", item: "ND 386", grm: "4.2", detailGrm: "", dies: "DT 32" },
-  { comp: "E", id: "2638", item: "ND 334", grm: "3.2", detailGrm: "", dies: "DT 32" },
-  { comp: "E", id: "2638", item: "ND 278", grm: "4.3", detailGrm: "", dies: "DT 32" },
-  { comp: "E", id: "2638", item: "ND 277", grm: "4.5", detailGrm: "", dies: "DT 32" },
-  { comp: "E", id: "2630", item: "ND 263 (217) YG", grm: "6.5", detailGrm: "", dies: "TR 2 (AIR BERSIH)" },
-  { comp: "E", id: "2630", item: "ND 263 (135) CL", grm: "7.5-8", detailGrm: "", dies: "TR 2 (AIR BERSIH)" },
-  { comp: "E", id: "4504", item: "ND 390", grm: "130", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "2421", item: "ND 337 (344)", grm: "4.5", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4354", item: "ND 367", grm: "75", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "2645", item: "ND 113 (365)", grm: "230", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2539", item: "ND 339", grm: "21", detailGrm: "", dies: "TR 2 (AIR BERSIH)" },
-  { comp: "S", id: "2626", item: "ND 01", grm: "28", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4573", item: "ND 366 (235)", grm: "165", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4573", item: "ND 361", grm: "70", detailGrm: "", dies: "Y 151" },
-  { comp: "E", id: "4573", item: "ND 451", grm: "155", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4593", item: "ND 454", grm: "30.5", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4573", item: "ND 362", grm: "26", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4573", item: "ND 309", grm: "190", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4573", item: "ND 308", grm: "170", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4573", item: "ND 397", grm: "340", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4573", item: "ND 364 (311)", grm: "135", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4593", item: "ND 77 (307)", grm: "35", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4573", item: "ND 275 (370)", grm: "200", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4573", item: "ND 114 (290)", grm: "1.5", detailGrm: "", dies: "Ø 14" },
-  { comp: "E", id: "4573", item: "ND 453", grm: "28.5", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4573", item: "ND 49", grm: "70", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4573", item: "ND 48", grm: "50", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4573", item: "ND 389 (338)", grm: "155", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4401", item: "ND 349 (279)", grm: "8.5", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4354", item: "ND 331", grm: "165", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4354", item: "ND 325 (222)", grm: "160", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4354", item: "ND 327", grm: "6", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4354", item: "ND 292", grm: "80", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4354", item: "ND 307", grm: "8.5", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4354", item: "ND 338", grm: "5", detailGrm: "", dies: "DT 32" },
-  { comp: "E", id: "4354", item: "ND 274", grm: "8.5", detailGrm: "", dies: "TR 2" },
-
-  // From PDF: RECORD CODE DATA MESIN (KODE: YY)
-  { comp: "E", id: "2645", item: "Y 137", grm: "240", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2645", item: "Y 02 (254)", grm: "340", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2645", item: "Y 339", grm: "16.5", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "2645", item: "Y 227", grm: "52", detailGrm: "", dies: "Y 151" },
-  { comp: "E", id: "2645", item: "Y 50", grm: "110", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2645", item: "Y 39", grm: "105", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "2645", item: "Y 199", grm: "22", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "2645", item: "Y 501", grm: "32", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "2645", item: "Y 42", grm: "175", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2645", item: "Y 27 (243)", grm: "60", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "2645", item: "Y 58 (337)", grm: "335 ± 5", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2645", item: "Y 218 (341)", grm: "84", detailGrm: "", dies: "Y 269 (-)" },
-  { comp: "E", id: "2619", item: "Y 25 (242)", grm: "232", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2619", item: "Y 70", grm: "77", detailGrm: "", dies: "Y 70 (⊗)" },
-  { comp: "E", id: "2619", item: "Y 51 (313)", grm: "140", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2624", item: "Y 191", grm: "41", detailGrm: "", dies: "Ø 26 (v)" },
-  { comp: "E", id: "2624", item: "Y 224", grm: "30", detailGrm: "", dies: "Y 224" },
-  { comp: "E", id: "2624", item: "Y 225", grm: "23-25", detailGrm: "", dies: "Y 151" },
-  { comp: "E", id: "4401", item: "Y 166", grm: "120", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4772", item: "Y 396", grm: "240", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4772", item: "Y 389", grm: "42", detailGrm: "(195)", dies: "SC 24" },
-  { comp: "E", id: "4772", item: "Y 317", grm: "195", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2653", item: "Y 325", grm: "9", detailGrm: "", dies: "Y 325" },
-  { comp: "E", id: "4593", item: "Y 460", grm: "65", detailGrm: "", dies: "Y 151" },
-  { comp: "E", id: "2624", item: "Y 176", grm: "275", detailGrm: "", dies: "276" },
+  // From PDF: RECORD CODE DATA MESIN (KODE: PM)
+  { comp: "E", id: "2539", item: "PM 281", grm: "50", detailGrm: "(81)", dies: "TH 44 (AIR BERSIH)" },
+  { comp: "E", id: "2539", item: "PM 280", grm: "36", detailGrm: "(182)", dies: "TR 2 (AIR BERSIH)" },
+  { comp: "E", id: "2624", item: "PM 47", grm: "5 ± 0.5", detailGrm: "", dies: "Ø 14" },
+  { comp: "E", id: "2624", item: "PM 101", grm: "16", detailGrm: "(98)", dies: "Ø 21" },
+  { comp: "E", id: "2645", item: "PM 134", grm: "135 ± 5", detailGrm: "(331)", dies: "TH 44" },
+  { comp: "E", id: "4573", item: "PM 126", grm: "260", detailGrm: "(166)", dies: "276" },
+  { comp: "EG", id: "4704", item: "PM 48", grm: "80", detailGrm: "", dies: "H 52 (🪟)" },
+  { comp: "AS", id: "2611", item: "PM 263", grm: "65", detailGrm: "(185)", dies: "Ø 27" },
+  { comp: "AS", id: "2505", item: "PM 61", grm: "65", detailGrm: "(315)", dies: "Ø 27" },
+  { comp: "AS", id: "2378", item: "PM 50", grm: "260", detailGrm: "", dies: "276" },
+  { comp: "AS", id: "2480", item: "PM 81", grm: "400", detailGrm: "", dies: "276" },
+  { comp: "AS", id: "2578", item: "PM 80", grm: "300", detailGrm: "", dies: "276" },
+  { comp: "N", id: "2710", item: "PM 397", grm: "3.5 - 4", detailGrm: "(339)", dies: "Ø 10" },
+  { comp: "E", id: "1742", item: "PM 149", grm: "35", detailGrm: "(358)", dies: "Ø 45" },
 
   // From Latest Batch Images: TR (IMG20260924083924_01475f33.jpg)
   { comp: "E", id: "4573", item: "TR 12", grm: "50±5", detailGrm: "(326)", dies: "TH 44" },
@@ -398,85 +345,200 @@ const DEFAULT_DATA: DataRow[] = [
   { comp: "E", id: "4573", item: "HJ 55", grm: "90", detailGrm: "(294)", dies: "TH 44 (Pendek)" },
   { comp: "E", id: "4573", item: "HJ 32", grm: "90", detailGrm: "", dies: "" },
 
-  // From New Uploaded Image: DT Page
-  { comp: "E", id: "1742/1000", item: "DT 31", grm: "26", detailGrm: "(336)", dies: "Ø 45" },
-  { comp: "E", id: "2657", item: "DT 58", grm: "36", detailGrm: "", dies: "Y 151 (AIR BERSIH)" },
-  { comp: "E", id: "2645", item: "DT 109", grm: "195", detailGrm: "(03)", dies: "276 (BESAR)" },
-  { comp: "E", id: "2645", item: "DT 61", grm: "150", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2653", item: "DT 167", grm: "275", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2653", item: "DT 122", grm: "48", detailGrm: "", dies: "DT 167" },
-  { comp: "E", id: "2665", item: "DT 167", grm: "31", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2665", item: "DT 178", grm: "210", detailGrm: "(296)", dies: "276 (AIR BERSIH)" },
-  { comp: "E", id: "2653", item: "DT 178", grm: "216", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "2514", item: "DT 40", grm: "130", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4354", item: "DT 81", grm: "60", detailGrm: "", dies: "Ø 10" },
-  { comp: "E", id: "2665", item: "DT 139", grm: "3.5", detailGrm: "", dies: "Ø 10" },
-  { comp: "E", id: "2658", item: "DT 113", grm: "2.5", detailGrm: "", dies: "Ø 26" },
-  { comp: "E", id: "2539", item: "DT 97", grm: "2.5", detailGrm: "", dies: "Ø 10" },
-  { comp: "E", id: "2539", item: "DT 99", grm: "2.2", detailGrm: "", dies: "SC 24" },
-  { comp: "E", id: "2539", item: "DT 96", grm: "16", detailGrm: "", dies: "276" },
-  { comp: "E", id: "2539", item: "DT 30", grm: "80", detailGrm: "", dies: "276" },
-  { comp: "E", id: "1000", item: "DT 151/152", grm: "225", detailGrm: "", dies: "Ø 65" },
-  { comp: "E", id: "1742", item: "DT 44", grm: "22", detailGrm: "", dies: "" },
-  { comp: "E", id: "1742", item: "DT 27 A", grm: "18", detailGrm: "", dies: "" },
-  { comp: "E", id: "1742", item: "DT 28", grm: "50", detailGrm: "(335)", dies: "276" },
-  { comp: "E", id: "1742", item: "DT 160 A", grm: "115", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4772", item: "DT 98", grm: "195", detailGrm: "", dies: "" },
-  { comp: "E", id: "1731", item: "DT 166 A", grm: "-", detailGrm: "", dies: "" },
-
-  // From New Uploaded Image: ND Page
+  // From PDF: RECORD CODE DATA MESIN (KODE: ND - Halaman 1 & 2)
+  { comp: "AG", id: "4615", item: "ND 299", grm: "12", detailGrm: "(325)", dies: "Ø 26" },
+  { comp: "E", id: "2645", item: "ND 08", grm: "2.5", detailGrm: "(253)", dies: "Ø 14" },
+  { comp: "E", id: "2638", item: "ND 351", grm: "3.8", detailGrm: "", dies: "ND 351" },
+  { comp: "E", id: "2638", item: "ND 352", grm: "2.2", detailGrm: "", dies: "ND 351" },
+  { comp: "E", id: "2638", item: "ND 350", grm: "4.5", detailGrm: "", dies: "DT 32" },
+  { comp: "E", id: "2638", item: "ND 368", grm: "2.6", detailGrm: "", dies: "ND 351" },
+  { comp: "E", id: "2638", item: "ND 386", grm: "4.2", detailGrm: "", dies: "DT 32" },
+  { comp: "E", id: "2638", item: "ND 334", grm: "3.2", detailGrm: "", dies: "DT 32" },
+  { comp: "E", id: "2638", item: "ND 278", grm: "4.3", detailGrm: "", dies: "DT 32" },
+  { comp: "E", id: "2638", item: "ND 277", grm: "4.5", detailGrm: "", dies: "DT 32" },
+  { comp: "E", id: "2630", item: "ND 263 YG", grm: "6.5", detailGrm: "(217)", dies: "TR 2 (AIR BERSIH)" },
+  { comp: "E", id: "2630", item: "ND 263 CL", grm: "7.5-8", detailGrm: "(135)", dies: "TR 2 (AIR BERSIH)" },
+  { comp: "E", id: "4504", item: "ND 390", grm: "130", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "2421", item: "ND 337", grm: "4.5", detailGrm: "(344)", dies: "TR 2" },
+  { comp: "E", id: "4354", item: "ND 367", grm: "75", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "2645", item: "ND 113", grm: "230", detailGrm: "(365)", dies: "276" },
+  { comp: "E", id: "2539", item: "ND 339", grm: "21", detailGrm: "", dies: "TR 2 (AIR BERSIH)" },
+  { comp: "S", id: "2626", item: "ND 01", grm: "28", detailGrm: "", dies: "TR 2" },
   { comp: "E", id: "4573", item: "ND 366", grm: "165", detailGrm: "(235)", dies: "276" },
   { comp: "E", id: "4573", item: "ND 361", grm: "70", detailGrm: "", dies: "Y 151" },
-  { comp: "E", id: "4593", item: "ND 454", grm: "155", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4573", item: "ND 362", grm: "30.5", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4573", item: "ND 309", grm: "26", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4573", item: "ND 308", grm: "190", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4573", item: "ND 397", grm: "170", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4573", item: "ND 364", grm: "340", detailGrm: "(311)", dies: "TH 44" },
-  { comp: "E", id: "4573", item: "ND 77", grm: "135", detailGrm: "(307)", dies: "Ø 14" },
-  { comp: "E", id: "4573", item: "ND 275", grm: "35", detailGrm: "(320)", dies: "Ø 14" },
-  { comp: "E", id: "4573", item: "ND 114", grm: "200", detailGrm: "(290)", dies: "TH 44" },
-  { comp: "E", id: "4573", item: "ND 453", grm: "1.5", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4573", item: "ND 49", grm: "28.5", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4573", item: "ND 389", grm: "70", detailGrm: "(338)", dies: "276" },
-  { comp: "E", id: "4401", item: "ND 349", grm: "50", detailGrm: "(277)", dies: "TR 2" },
-  { comp: "E", id: "4354", item: "ND 331", grm: "155", detailGrm: "", dies: "276" },
-  { comp: "E", id: "4354", item: "ND 325", grm: "8.5", detailGrm: "(222)", dies: "276" },
-  { comp: "E", id: "4354", item: "ND 327", grm: "165", detailGrm: "", dies: "TR 2" },
-  { comp: "E", id: "4354", item: "ND 292", grm: "6", detailGrm: "", dies: "TH 44" },
-  { comp: "E", id: "4354", item: "ND 307", grm: "80", detailGrm: "", dies: "TR 2" },
+  { comp: "E", id: "4573", item: "ND 451", grm: "155", detailGrm: "", dies: "276" },
+  { comp: "E", id: "4593", item: "ND 454", grm: "30.5", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "4573", item: "ND 362", grm: "26", detailGrm: "", dies: "TR 2" },
+  { comp: "E", id: "4573", item: "ND 309", grm: "190", detailGrm: "", dies: "276" },
+  { comp: "E", id: "4573", item: "ND 308", grm: "170", detailGrm: "", dies: "276" },
+  { comp: "E", id: "4573", item: "ND 397", grm: "340", detailGrm: "", dies: "276" },
+  { comp: "E", id: "4573", item: "ND 364", grm: "135", detailGrm: "(311)", dies: "TH 44" },
+  { comp: "E", id: "4593", item: "ND 77", grm: "35", detailGrm: "(307)", dies: "TH 44" },
+  { comp: "E", id: "4573", item: "ND 275", grm: "200", detailGrm: "(370)", dies: "276" },
+  { comp: "E", id: "4573", item: "ND 114", grm: "1.5", detailGrm: "(290)", dies: "Ø 14" },
+  { comp: "E", id: "4573", item: "ND 453", grm: "28.5", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "4573", item: "ND 49", grm: "70", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "4573", item: "ND 48", grm: "50", detailGrm: "", dies: "TR 2" },
+  { comp: "E", id: "4573", item: "ND 389", grm: "155", detailGrm: "(338)", dies: "276" },
+  { comp: "E", id: "4401", item: "ND 349", grm: "8.5", detailGrm: "(279)", dies: "TR 2" },
+  { comp: "E", id: "4354", item: "ND 331", grm: "165", detailGrm: "", dies: "276" },
+  { comp: "E", id: "4354", item: "ND 325", grm: "160", detailGrm: "(222)", dies: "276" },
+  { comp: "E", id: "4354", item: "ND 327", grm: "6", detailGrm: "", dies: "TR 2" },
+  { comp: "E", id: "4354", item: "ND 292", grm: "80", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "4354", item: "ND 307", grm: "8.5", detailGrm: "", dies: "TR 2" },
   { comp: "E", id: "4354", item: "ND 338", grm: "5", detailGrm: "", dies: "DT 32" },
-  { comp: "E", id: "4354", item: "ND 274", grm: "8.5", detailGrm: "", dies: "TP 2" }
+  { comp: "E", id: "4354", item: "ND 274", grm: "8.5", detailGrm: "", dies: "TR 2" },
+
+  // From PDF: RECORD CODE DATA MESIN (KODE: YY - Halaman 1)
+  { comp: "E", id: "2645", item: "Y 137", grm: "240", detailGrm: "", dies: "276" },
+  { comp: "E", id: "2645", item: "Y 02", grm: "340", detailGrm: "(254)", dies: "276" },
+  { comp: "E", id: "2645", item: "Y 339", grm: "16.5", detailGrm: "", dies: "TR 2" },
+  { comp: "E", id: "2645", item: "Y 227", grm: "52", detailGrm: "", dies: "Y 151" },
+  { comp: "E", id: "2645", item: "Y 50", grm: "110", detailGrm: "", dies: "276" },
+  { comp: "E", id: "2645", item: "Y 39", grm: "105", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "2645", item: "Y 199", grm: "22", detailGrm: "", dies: "TR 2" },
+  { comp: "E", id: "2645", item: "Y 501", grm: "32", detailGrm: "", dies: "TR 2" },
+  { comp: "E", id: "2645", item: "Y 42", grm: "175", detailGrm: "", dies: "276" },
+  { comp: "E", id: "2645", item: "Y 27", grm: "60", detailGrm: "(243)", dies: "TH 44" },
+  { comp: "E", id: "2645", item: "Y 58", grm: "335 ± 5", detailGrm: "(337)", dies: "276" },
+  { comp: "E", id: "2645", item: "Y 218", grm: "84", detailGrm: "(341)", dies: "Y 269 (⎼)" },
+  { comp: "E", id: "2619", item: "Y 25", grm: "232", detailGrm: "(242)", dies: "276" },
+  { comp: "E", id: "2619", item: "Y 70", grm: "77", detailGrm: "", dies: "Y 70 (⊗)" },
+  { comp: "E", id: "2619", item: "Y 51", grm: "140", detailGrm: "(313)", dies: "276" },
+  { comp: "E", id: "2624", item: "Y 191", grm: "41", detailGrm: "", dies: "Ø 26 (⩔)" },
+  { comp: "E", id: "2624", item: "Y 224", grm: "30", detailGrm: "", dies: "Y 224" },
+  { comp: "E", id: "2624", item: "Y 225", grm: "23-25", detailGrm: "", dies: "Y 151" },
+  { comp: "E", id: "4401", item: "Y 166", grm: "120", detailGrm: "", dies: "TH 44" },
+  { comp: "E", id: "4772", item: "Y 396", grm: "240", detailGrm: "", dies: "276" },
+  { comp: "E", id: "4772", item: "Y 389", grm: "42", detailGrm: "(195)", dies: "SC 24" },
+  { comp: "E", id: "4772", item: "Y 317", grm: "195", detailGrm: "", dies: "276" },
+  { comp: "E", id: "2653", item: "Y 325", grm: "9", detailGrm: "", dies: "Y 325" },
+  { comp: "E", id: "4593", item: "Y 460", grm: "65", detailGrm: "", dies: "Y 151" },
+  { comp: "E", id: "2624", item: "Y 176", grm: "275", detailGrm: "", dies: "276" },
+
+  // From PDF: RECORD CODE DATA MESIN (KODE: Y - Halaman 1)
+  { comp: "EG", id: "4704", item: "Y 53", grm: "250", detailGrm: "(324)", dies: "276" },
+  { comp: "E", id: "1781", item: "Y 535 A", grm: "125", detailGrm: "(348)", dies: "276" },
+  { comp: "E", id: "1000", item: "Y 414", grm: "125", detailGrm: "(334)", dies: "TH 44" },
+  { comp: "E", id: "1000", item: "Y 269", grm: "84", detailGrm: "", dies: "Y 269 (⎼)" },
+  { comp: "E", id: "1000", item: "Y 281", grm: "145", detailGrm: "(361)", dies: "276" },
+  { comp: "N", id: "4645", item: "Y 467", grm: "160", detailGrm: "", dies: "Y 269 ➔" },
+  { comp: "N", id: "2661", item: "Y 377", grm: "8.8", detailGrm: "(62)", dies: "Ø 18" },
+  { comp: "N", id: "2822", item: "Y 408", grm: "36", detailGrm: "", dies: "Ø 35" },
+  { comp: "N", id: "2601", item: "Y 212", grm: "3.4", detailGrm: "", dies: "Ø 10" },
+  { comp: "N", id: "4701", item: "Y 346", grm: "8.2", detailGrm: "", dies: "Ø 19" },
+  { comp: "N", id: "2910", item: "Y 86", grm: "80 ± 1", detailGrm: "", dies: "Y 86 (⎼)" },
+  { comp: "N", id: "2910", item: "Y 388", grm: "45", detailGrm: "", dies: "Y 269" },
+  { comp: "N", id: "2810", item: "Y 223", grm: "505 ± 2", detailGrm: "", dies: "276" },
+  { comp: "N", id: "2710", item: "Y 118", grm: "175", detailGrm: "", dies: "276" },
+  { comp: "N", id: "2510", item: "Y 48", grm: "120", detailGrm: "", dies: "276" },
+  { comp: "EG", id: "2804", item: "Y 138", grm: "60", detailGrm: "(17)", dies: "Y 138 (⩔)" },
+  { comp: "EG", id: "2804", item: "Y 47", grm: "160", detailGrm: "(129)", dies: "276" },
+  { comp: "EG", id: "4704", item: "Y 40", grm: "230", detailGrm: "(272)", dies: "276" },
+  { comp: "AS", id: "4751", item: "Y 12 (LAMA)", grm: "42", detailGrm: "", dies: "Ø 21" },
+  { comp: "AS", id: "4751", item: "Y 203", grm: "42", detailGrm: "(27)", dies: "Ø 20" },
+  { comp: "AS", id: "2707", item: "Y 12 (BARU)", grm: "44", detailGrm: "", dies: "Ø 21" },
+  { comp: "AS", id: "2814", item: "Y 314", grm: "46", detailGrm: "", dies: "Y 314 (⎕)" },
+  { comp: "AS", id: "2814", item: "Y 316", grm: "46", detailGrm: "", dies: "Y 316 (⎼)" },
+  { comp: "AS", id: "4751", item: "Y 148", grm: "42", detailGrm: "", dies: "Ø 20" },
+  { comp: "E", id: "2645", item: "Y 481", grm: "27 ± 2", detailGrm: "(356)", dies: "Y 151" },
+  { comp: "-", id: "-", item: "Y 303", grm: "74 ± 0.2", detailGrm: "(364)", dies: "Y 138 (⩔)" },
+  { comp: "-", id: "-", item: "Y 269", grm: "83 ± 0.5", detailGrm: "(376)", dies: "TH 44" }
 ];
 
 
+// Helper to remove duplicate entries with identical COMPOUND + ITEM + GRAM
+export const deduplicateDatabase = (data: DataRow[]): DataRow[] => {
+  const map = new Map<string, DataRow>();
+  data.forEach(item => {
+    const compKey = (item.comp || '').trim().toUpperCase();
+    const itemKey = (item.item || '').trim().toUpperCase();
+    const grmKey = (item.grm || '').trim().toUpperCase();
+
+    // Ignore completely empty rows
+    if (!itemKey && !compKey && !grmKey) return;
+
+    // Composite unique key for Comp + Item + Gram
+    const uniqueKey = `${compKey}|${itemKey}|${grmKey}`;
+
+    if (!map.has(uniqueKey)) {
+      map.set(uniqueKey, item);
+    } else {
+      const existing = map.get(uniqueKey)!;
+      const updated = { ...existing };
+      if ((!existing.dies || existing.dies === '-' || existing.dies.trim() === '') && item.dies && item.dies !== '-') {
+        updated.dies = item.dies;
+      }
+      if ((!existing.detailGrm || existing.detailGrm.trim() === '') && item.detailGrm) {
+        updated.detailGrm = item.detailGrm;
+      }
+      map.set(uniqueKey, updated);
+    }
+  });
+  return Array.from(map.values());
+};
+
 export default function App() {
   const [dbData, setDbData] = useState<DataRow[]>(() => {
+    let deletedKeys = new Set<string>();
+    try {
+      const savedDeleted = localStorage.getItem('searchEngineDeletedKeys');
+      if (savedDeleted) {
+        const parsedDeleted = JSON.parse(savedDeleted);
+        if (Array.isArray(parsedDeleted)) {
+          deletedKeys = new Set(parsedDeleted.map(k => String(k).trim().toUpperCase()));
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load deleted keys", e);
+    }
+
     try {
       const saved = localStorage.getItem('searchEngineDB');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const map = new Map<string, DataRow>();
-          // First add saved items so user edits and deletions are fully preserved across refreshes
-          parsed.forEach(item => {
+          const rawCleaned = parsed.filter(item => {
             const key = (item.item || '').trim().toUpperCase();
-            if (key) map.set(key, item);
+            const compKey = (item.comp || '').trim().toUpperCase();
+            const grmKey = (item.grm || '').trim().toUpperCase();
+            const compositeKey = `${compKey}_${key}_${grmKey}`;
+            const hasContent = (item.item && item.item.trim() !== '') || (item.comp && item.comp.trim() !== '') || (item.grm && item.grm.trim() !== '');
+
+            return hasContent && !deletedKeys.has(key) && !deletedKeys.has(compositeKey);
           });
-          // Add/update master DEFAULT_DATA items so corrections reflect immediately
-          DEFAULT_DATA.forEach(item => {
+
+          // Merge master DEFAULT_DATA items ONLY if they were not deleted by user
+          const defaultCleaned = DEFAULT_DATA.filter(item => {
             const key = (item.item || '').trim().toUpperCase();
-            if (key) {
-              map.set(key, item);
-            }
+            const compKey = (item.comp || '').trim().toUpperCase();
+            const grmKey = (item.grm || '').trim().toUpperCase();
+            const compositeKey = `${compKey}_${key}_${grmKey}`;
+
+            return key && !deletedKeys.has(key) && !deletedKeys.has(compositeKey);
           });
-          return Array.from(map.values());
+
+          const merged = [...rawCleaned, ...defaultCleaned];
+          const deduped = deduplicateDatabase(merged);
+          localStorage.setItem('searchEngineDB', JSON.stringify(deduped));
+          return deduped;
         }
       }
     } catch (e) {
       console.error("Failed to load local storage", e);
     }
-    return DEFAULT_DATA;
+
+    const cleanDefault = DEFAULT_DATA.filter(item => {
+      const key = (item.item || '').trim().toUpperCase();
+      const compKey = (item.comp || '').trim().toUpperCase();
+      const grmKey = (item.grm || '').trim().toUpperCase();
+      const compositeKey = `${compKey}_${key}_${grmKey}`;
+      return key && !deletedKeys.has(key) && !deletedKeys.has(compositeKey);
+    });
+    const dedupedDefault = deduplicateDatabase(cleanDefault);
+    localStorage.setItem('searchEngineDB', JSON.stringify(dedupedDefault));
+    return dedupedDefault;
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -500,15 +562,63 @@ export default function App() {
   // Images viewer modal state
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false);
 
+  // Confirmation Modals State
+  const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+
+  // Sync Modal State
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [pasteSyncCode, setPasteSyncCode] = useState('');
+
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // File input ref for import
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Cross-tab BroadcastChannel sync listener
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        channel = new BroadcastChannel('datacentral_sync');
+        channel.onmessage = (e) => {
+          if (e.data && e.data.type === 'DB_SYNC' && Array.isArray(e.data.dbData)) {
+            if (e.data.isPurged) {
+              localStorage.removeItem('searchEngineDeletedKeys');
+            } else if (Array.isArray(e.data.deletedKeys)) {
+              localStorage.setItem('searchEngineDeletedKeys', JSON.stringify(e.data.deletedKeys));
+            }
+            const deduped = deduplicateDatabase(e.data.dbData);
+            setDbData(deduped);
+            localStorage.setItem('searchEngineDB', JSON.stringify(deduped));
+          }
+        };
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    return () => {
+      channel?.close();
+    };
+  }, []);
+
   useEffect(() => {
     try {
-      localStorage.setItem('searchEngineDB', JSON.stringify(dbData));
+      const deduped = deduplicateDatabase(dbData);
+      if (deduped.length !== dbData.length) {
+        setDbData(deduped);
+      }
+      localStorage.setItem('searchEngineDB', JSON.stringify(deduped));
+
+      // Broadcast to other tabs/windows if open
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const channel = new BroadcastChannel('datacentral_sync');
+        const savedDeleted = localStorage.getItem('searchEngineDeletedKeys');
+        const deletedKeys = savedDeleted ? JSON.parse(savedDeleted) : [];
+        channel.postMessage({ type: 'DB_SYNC', dbData: deduped, deletedKeys });
+        channel.close();
+      }
     } catch (e) {
       console.error("Failed to save to local storage", e);
     }
@@ -615,30 +725,173 @@ export default function App() {
     if (editingIndex !== null) {
       const updated = [...dbData];
       updated[editingIndex] = formData;
-      setDbData(updated);
+      const deduped = deduplicateDatabase(updated);
+      setDbData(deduped);
       showToast('Data berhasil diperbarui!');
     } else {
-      setDbData([formData, ...dbData]);
+      const deduped = deduplicateDatabase([formData, ...dbData]);
+      setDbData(deduped);
       showToast('Data baru berhasil ditambahkan!');
     }
     setIsModalOpen(false);
   };
 
   const handleDelete = (originalIndex: number) => {
-    if (window.confirm('Yakin ingin menghapus data ini dari database?')) {
-      const updated = dbData.filter((_, idx) => idx !== originalIndex);
+    setDeleteConfirmIndex(originalIndex);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirmIndex !== null && deleteConfirmIndex >= 0 && deleteConfirmIndex < dbData.length) {
+      const targetItem = dbData[deleteConfirmIndex];
+      const deletedItemName = targetItem?.item || 'Data';
+      const itemKey = (targetItem?.item || '').trim().toUpperCase();
+      const compKey = (targetItem?.comp || '').trim().toUpperCase();
+      const grmKey = (targetItem?.grm || '').trim().toUpperCase();
+      const compositeKey = `${compKey}_${itemKey}_${grmKey}`;
+
+      // Save deleted keys to localStorage so deletion is permanent across page reloads
+      try {
+        const savedDeleted = localStorage.getItem('searchEngineDeletedKeys');
+        const deletedSet = new Set<string>(savedDeleted ? JSON.parse(savedDeleted) : []);
+        if (itemKey) deletedSet.add(itemKey);
+        if (compositeKey) deletedSet.add(compositeKey);
+        localStorage.setItem('searchEngineDeletedKeys', JSON.stringify(Array.from(deletedSet)));
+      } catch (e) {
+        console.error("Failed to record deleted key", e);
+      }
+
+      const updated = dbData.filter((_, idx) => idx !== deleteConfirmIndex);
       setDbData(updated);
-      showToast('Data berhasil dihapus.');
+      localStorage.setItem('searchEngineDB', JSON.stringify(updated));
+      showToast(`${deletedItemName} berhasil dihapus permanen & tidak akan muncul kembali.`);
     }
+    setDeleteConfirmIndex(null);
   };
 
   const handleResetDefault = () => {
-    if (window.confirm('Reset database kembali ke seluruh data catatan lengkap?')) {
-      setDbData(DEFAULT_DATA);
-      setSearchQuery('');
-      setItemPrefixFilter('');
-      showToast('Database direset ke data lengkap.');
+    setIsResetConfirmOpen(true);
+  };
+
+  const handleCleanDuplicates = () => {
+    const beforeCount = dbData.length;
+    const deduped = deduplicateDatabase(dbData);
+    const removed = beforeCount - deduped.length;
+    setDbData(deduped);
+    localStorage.setItem('searchEngineDB', JSON.stringify(deduped));
+    if (removed > 0) {
+      showToast(`Berhasil membersihkan ${removed} data duplikat!`);
+    } else {
+      showToast(`Database sudah 100% bersih dari duplikasi (${deduped.length} item unik).`);
     }
+  };
+
+  const handlePurgeSystem = () => {
+    try {
+      localStorage.removeItem('searchEngineDeletedKeys');
+      const cleaned = dbData.filter(item => {
+        const itemKey = (item.item || '').trim().toUpperCase();
+        return itemKey !== '';
+      });
+      const deduped = deduplicateDatabase(cleaned);
+      setDbData(deduped);
+      localStorage.setItem('searchEngineDB', JSON.stringify(deduped));
+
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const channel = new BroadcastChannel('datacentral_sync');
+        channel.postMessage({ type: 'DB_SYNC', dbData: deduped, deletedKeys: [], isPurged: true });
+        channel.close();
+      }
+      showToast('Seluruh data terhapus & riwayat sistem berhasil dibersihkan total!');
+    } catch (e) {
+      console.error("Purge system failed", e);
+      showToast('Gagal membersihkan sistem.');
+    }
+  };
+
+  const confirmReset = () => {
+    localStorage.removeItem('searchEngineDeletedKeys');
+    const deduped = deduplicateDatabase(DEFAULT_DATA);
+    setDbData(deduped);
+    localStorage.setItem('searchEngineDB', JSON.stringify(deduped));
+    setSearchQuery('');
+    setItemPrefixFilter('');
+    
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('datacentral_sync');
+      channel.postMessage({ type: 'DB_SYNC', dbData: deduped, deletedKeys: [], isPurged: true });
+      channel.close();
+    }
+    
+    showToast('Database direset & dibersihkan dari seluruh duplikasi dan riwayat hapus.');
+    setIsResetConfirmOpen(false);
+  };
+
+  const handleExportExcel = () => {
+    const dataToExport = filteredData.length > 0 ? filteredData : dbData;
+    const formattedRows = dataToExport.map((row, idx) => ({
+      'NO': idx + 1,
+      'COMPOUND': row.comp || '-',
+      'ID': row.id || '-',
+      'ITEM': row.item || '-',
+      'GRAM': row.grm || '-',
+      'DETAIL GRAM': row.detailGrm || '-',
+      'DIES / KETERANGAN': row.dies || '-'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Record Data Mesin');
+
+    worksheet['!cols'] = [
+      { wch: 6 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 30 }
+    ];
+
+    XLSX.writeFile(workbook, `Record_Data_Mesin_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast(`Berhasil mendownload Excel (.xlsx) dengan ${formattedRows.length} data!`);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const dataToExport = filteredData.length > 0 ? filteredData : dbData;
+
+    doc.setFontSize(16);
+    doc.setTextColor(30, 41, 59);
+    doc.text('RECORD CODE DATA MESIN - SPEK BARWELL', 14, 15);
+
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Total Data: ${dataToExport.length} baris | Tanggal: ${new Date().toLocaleDateString('id-ID')}`, 14, 21);
+
+    const tableColumn = ["NO", "COMPOUND", "ID", "ITEM", "GRAM", "DETAIL GRAM", "DIES / KETERANGAN"];
+    const tableRows = dataToExport.map((row, idx) => [
+      idx + 1,
+      row.comp || '-',
+      row.id || '-',
+      row.item || '-',
+      row.grm || '-',
+      row.detailGrm || '-',
+      row.dies || '-'
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 25,
+      theme: 'grid',
+      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 8.5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { overflow: 'linebreak', cellPadding: 2.5 }
+    });
+
+    doc.save(`Record_Data_Mesin_${new Date().toISOString().slice(0, 10)}.pdf`);
+    showToast(`Berhasil mendownload PDF Berformat Excel (.pdf)!`);
   };
 
   const handleExportCSV = () => {
@@ -663,6 +916,55 @@ export default function App() {
     a.download = `database_export_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     showToast('Ekspor JSON berhasil!');
+  };
+
+  const handleCopySyncCode = () => {
+    try {
+      const savedDeleted = localStorage.getItem('searchEngineDeletedKeys');
+      const deletedKeys = savedDeleted ? JSON.parse(savedDeleted) : [];
+      const payload = JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        dbData,
+        deletedKeys
+      });
+      navigator.clipboard.writeText(payload);
+      showToast('Kode data & status hapus berhasil disalin ke clipboard!');
+    } catch (e) {
+      showToast('Gagal menyalin kode data.');
+    }
+  };
+
+  const handleApplyPasteSyncCode = () => {
+    if (!pasteSyncCode.trim()) {
+      showToast('Masukkan kode data terlebih dahulu.');
+      return;
+    }
+    try {
+      const parsed = JSON.parse(pasteSyncCode.trim());
+      if (parsed && Array.isArray(parsed.dbData)) {
+        if (Array.isArray(parsed.deletedKeys)) {
+          localStorage.setItem('searchEngineDeletedKeys', JSON.stringify(parsed.deletedKeys));
+        }
+        const deduped = deduplicateDatabase(parsed.dbData);
+        setDbData(deduped);
+        localStorage.setItem('searchEngineDB', JSON.stringify(deduped));
+        showToast(`Berhasil menyinkronkan ${deduped.length} data dari link!`);
+        setIsSyncModalOpen(false);
+        setPasteSyncCode('');
+      } else if (Array.isArray(parsed)) {
+        const deduped = deduplicateDatabase(parsed);
+        setDbData(deduped);
+        localStorage.setItem('searchEngineDB', JSON.stringify(deduped));
+        showToast(`Berhasil menyinkronkan ${deduped.length} data!`);
+        setIsSyncModalOpen(false);
+        setPasteSyncCode('');
+      } else {
+        throw new Error('Format kode tidak valid');
+      }
+    } catch (err) {
+      showToast('Kode tidak valid. Pastikan hasil salinan sesuai.');
+    }
   };
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -754,12 +1056,28 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportExcel}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95"
+              title="Download File Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span className="hidden sm:inline">Excel (.xlsx)</span>
+            </button>
 
+            <button
+              onClick={handleExportPDF}
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-red-500/20 active:scale-95"
+              title="Download File PDF (.pdf)"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">PDF (.pdf)</span>
+            </button>
 
             <button
               onClick={openAddModal}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 shadow-md shadow-blue-500/25 active:scale-95"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-blue-500/25 active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Data</span>
@@ -1269,6 +1587,68 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus */}
+      {deleteConfirmIndex !== null && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Konfirmasi Hapus Data</h3>
+            <p className="text-sm text-slate-500 mb-6">
+              Apakah Anda yakin ingin menghapus <strong className="text-slate-800">{dbData[deleteConfirmIndex]?.item || 'item ini'}</strong> dari database?
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmIndex(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition shadow-md shadow-red-500/20 active:scale-95"
+              >
+                Ya, Hapus Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Reset */}
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Reset Database</h3>
+            <p className="text-sm text-slate-500 mb-6">
+              Apakah Anda yakin ingin mengembalikan seluruh database ke data awal master catatan?
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmReset}
+                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition shadow-md shadow-amber-500/20 active:scale-95"
+              >
+                Ya, Reset Database
+              </button>
+            </div>
           </div>
         </div>
       )}
