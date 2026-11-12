@@ -830,8 +830,7 @@ export default function App() {
     const dataToExport = filteredData.length > 0 ? filteredData : dbData;
     const formattedRows = dataToExport.map((row, idx) => ({
       'NO': idx + 1,
-      'COMPOUND': row.comp || '-',
-      'ID': row.id || '-',
+      'COMPOUND / ID': row.comp && row.comp !== '-' ? `${row.comp} ${row.id}` : row.id || '-',
       'ITEM': row.item || '-',
       'GRAM': row.grm || '-',
       'DETAIL GRAM': row.detailGrm || '-',
@@ -844,8 +843,7 @@ export default function App() {
 
     worksheet['!cols'] = [
       { wch: 6 },
-      { wch: 15 },
-      { wch: 15 },
+      { wch: 22 },
       { wch: 20 },
       { wch: 18 },
       { wch: 18 },
@@ -868,11 +866,10 @@ export default function App() {
     doc.setTextColor(100, 116, 139);
     doc.text(`Total Data: ${dataToExport.length} baris | Tanggal: ${new Date().toLocaleDateString('id-ID')}`, 14, 21);
 
-    const tableColumn = ["NO", "COMPOUND", "ID", "ITEM", "GRAM", "DETAIL GRAM", "DIES / KETERANGAN"];
+    const tableColumn = ["NO", "COMPOUND / ID", "ITEM", "GRAM", "DETAIL GRAM", "DIES / KETERANGAN"];
     const tableRows = dataToExport.map((row, idx) => [
       idx + 1,
-      row.comp || '-',
-      row.id || '-',
+      row.comp && row.comp !== '-' ? `${row.comp} ${row.id}` : row.id || '-',
       row.item || '-',
       row.grm || '-',
       row.detailGrm || '-',
@@ -1251,13 +1248,7 @@ export default function App() {
                   <tr className="bg-slate-50/80 border-b border-slate-200/80 text-xs font-bold text-slate-500 uppercase tracking-wider">
                     <th className="p-4 cursor-pointer hover:text-blue-600 transition" onClick={() => handleSort('comp')}>
                       <div className="flex items-center gap-1.5">
-                        <span>COMP</span>
-                        <ArrowUpDown className="w-3 h-3" />
-                      </div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:text-blue-600 transition" onClick={() => handleSort('id')}>
-                      <div className="flex items-center gap-1.5">
-                        <span>ID</span>
+                        <span>COMPOUND / ID</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
@@ -1284,13 +1275,15 @@ export default function App() {
                     return (
                       <tr key={originalIndex} className="hover:bg-blue-50/40 transition group">
                         <td className="p-4 font-bold text-blue-600">
-                          {row.comp ? (
-                            <span className="bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60 inline-block">
-                              {row.comp}
-                            </span>
-                          ) : <span className="text-slate-400 font-normal">-</span>}
+                          <div className="flex items-center gap-2">
+                            {row.comp && row.comp !== '-' ? (
+                              <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-200/60 inline-block">
+                                {row.comp}
+                              </span>
+                            ) : null}
+                            <span className="font-mono font-medium text-slate-700">{row.id || '-'}</span>
+                          </div>
                         </td>
-                        <td className="p-4 font-mono font-medium text-slate-700">{row.id || '-'}</td>
                         <td className="p-4 font-semibold text-slate-900">
                           <span className="cursor-pointer hover:text-blue-600 flex items-center gap-1.5" onClick={() => copyToClipboard(row.item)} title="Klik untuk salin">
                             {row.item}
@@ -1346,11 +1339,11 @@ export default function App() {
                 <div key={originalIndex} className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between group">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="bg-blue-50 text-blue-700 font-bold px-3 py-1 rounded-xl text-xs border border-blue-200/60">
-                        COMP: {row.comp || '-'}
-                      </span>
-                      <span className="font-mono text-xs font-semibold text-slate-400">
-                        ID: {row.id || '-'}
+                      <span className="bg-blue-50 text-blue-700 font-bold px-3 py-1 rounded-xl text-xs border border-blue-200/60 inline-flex items-center gap-1.5">
+                        <span>COMP / ID:</span>
+                        <span className="font-mono text-slate-800 font-semibold">
+                          {row.comp && row.comp !== '-' ? `${row.comp} ${row.id}` : row.id || '-'}
+                        </span>
                       </span>
                     </div>
 
@@ -1500,25 +1493,22 @@ export default function App() {
             </div>
 
             <form onSubmit={handleSaveData} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">COMP</label>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">COMPOUND / ID *</label>
+                <div className="grid grid-cols-2 gap-2">
                   <input 
                     type="text" 
                     value={formData.comp}
                     onChange={(e) => setFormData({ ...formData, comp: e.target.value.toUpperCase() })}
-                    placeholder="Contoh: E, S, AG" 
+                    placeholder="Comp (Contoh: E, S)" 
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-medium"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">ID *</label>
                   <input 
                     type="text" 
                     required 
                     value={formData.id}
                     onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                    placeholder="Contoh: 4573" 
+                    placeholder="ID (Contoh: 4573)" 
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-medium"
                   />
                 </div>
